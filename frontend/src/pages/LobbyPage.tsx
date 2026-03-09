@@ -6,21 +6,28 @@ import { useWs } from "../net/WebSocketProvider";
 
 export function LobbyPage() {
   const nav = useNavigate();
-  const { send, lastMessage } = useWs();
+  const { send, subscribe } = useWs();
   const [waiting, setWaiting] = useState(0);
 
   useEffect(() => {
-    if (!lastMessage) return;
-
-    if (lastMessage.type === "queue_update") {
-      setWaiting((lastMessage as any).payload.players_waiting ?? 0);
-    }
-
-    if (lastMessage.type === "game_start") {
-      const gameId = (lastMessage as any).payload.game_id as string;
-      nav(`/game/${gameId}`);
-    }
-  }, [lastMessage, nav]);
+    return subscribe((message) => {
+      if (message.type === "queue_update") {
+        setWaiting((message as any).payload.players_waiting ?? 0);
+        return;
+      }
+      if (message.type === "game_start") {
+        const gameId = (message as any).payload.game_id as string;
+        nav(`/game/${gameId}`);
+        return;
+      }
+      if (message.type === "state_update") {
+        const gameId = (message as any).payload?.state?.game_id as string | undefined;
+        if (gameId) {
+          nav(`/game/${gameId}`);
+        }
+      }
+    });
+  }, [nav, subscribe]);
 
   return (
     <div className="min-h-full bg-zinc-950 text-white">

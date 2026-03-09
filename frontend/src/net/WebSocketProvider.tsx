@@ -8,6 +8,7 @@ type WsContextValue = {
   clientId: string | null;
   send: <T,>(type: string, payload: T) => void;
   lastMessage: ServerToClient | null;
+  subscribe: (handler: (msg: ServerToClient) => void) => () => void;
 };
 
 const WsContext = createContext<WsContextValue | null>(null);
@@ -27,6 +28,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<WsContextValue["state"]>("disconnected");
   const [clientId, setClientId] = useState<string | null>(null);
   const [lastMessage, setLastMessage] = useState<ServerToClient | null>(null);
+  const subscribersRef = useRef(new Set<(msg: ServerToClient) => void>());
 
   useEffect(() => {
     const client = useMock ? new MockWsClient(wsUrl) : new WsClient(wsUrl);
@@ -43,6 +45,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     const off = client.onMessage((msg) => {
       setLastMessage(msg);
+      for (const handler of subscribersRef.current) {
+        handler(msg);
+      }
     });
 
     return () => {
@@ -59,7 +64,14 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const value: WsContextValue = { state, clientId, send, lastMessage };
+  const subscribe = useMemo(() => {
+    return (handler: (msg: ServerToClient) => void) => {
+      subscribersRef.current.add(handler);
+      return () => subscribersRef.current.delete(handler);
+    };
+  }, []);
+
+  const value: WsContextValue = { state, clientId, send, lastMessage, subscribe };
 
   return <WsContext.Provider value={value}>{children}</WsContext.Provider>;
 }

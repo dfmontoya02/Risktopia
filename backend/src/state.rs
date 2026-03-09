@@ -1,26 +1,6 @@
-use axum::extract::ws::Message;
-use std::fmt;
+use crate::rooms::types::{GameRoom, PlayerHandle};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
-use tokio::sync::mpsc;
-
-pub struct PlayerHandle {
-    pub id: String,
-    pub sender: mpsc::UnboundedSender<Message>,
-}
-impl fmt::Debug for PlayerHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PlayerHandle")
-            .field("id", &self.id)
-            .field("sender", &"-")
-            .finish()
-    }
-}
-
-#[derive(Default)]
-pub struct GameRoom {
-    pub players: Vec<PlayerHandle>,
-}
 
 #[derive(Clone)]
 pub struct AppState {

@@ -8,21 +8,22 @@ type ChatMsg = {
 };
 
 export function ChatPanel(props: { scope: "lobby" | "game"; gameId?: string }) {
-  const { send, lastMessage } = useWs();
+  const { send, subscribe } = useWs();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!lastMessage) return;
-    if (lastMessage.type !== "chat_message") return;
+    return subscribe((message) => {
+      if (message.type !== "chat_message") return;
 
-    const p: any = lastMessage.payload;
-    if (p.scope !== props.scope) return;
-    if (props.scope === "game" && p.game_id !== props.gameId) return;
+      const p: any = message.payload;
+      if (p.scope !== props.scope) return;
+      if (props.scope === "game" && p.game_id !== props.gameId) return;
 
-    setMessages((m) => [...m, { from: p.from, message: p.message, timestamp_ms: p.timestamp_ms }]);
-  }, [lastMessage, props.scope, props.gameId]);
+      setMessages((m) => [...m, { from: p.from, message: p.message, timestamp_ms: p.timestamp_ms }]);
+    });
+  }, [props.scope, props.gameId, subscribe]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });

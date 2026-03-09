@@ -13,10 +13,7 @@ export class MockWsClient {
   private waiting = 0;
   private inQueue = false;
 
-  private url: string;
-
-  constructor(url: string) {
-    this.url = url;
+  constructor(_url: string) {
   }
 
   onMessage(handler: Handler) {
@@ -72,6 +69,42 @@ export class MockWsClient {
         },
       });
     }
+
+    if (type === "game_action") {
+      const p = payload as any;
+      if (p?.game_id) {
+        this.emit({
+          type: "game_view",
+          version: 1,
+          payload: this.mockGameView(p.game_id, 2),
+        });
+      }
+    }
+
+    if (type === "state_refresh") {
+      const p = payload as any;
+      if (p?.game_id) {
+        this.emit({
+          type: "state_update",
+          version: 1,
+          payload: {
+            state_version: 2,
+            state: {
+              game_id: p.game_id,
+              current_player: 0,
+              turn_phase: "Setup",
+              game_phase: "InProgress",
+              territories: Array.from({ length: 42 }, () => ({ owner: 255, troops: 0 })),
+            },
+          },
+        });
+        this.emit({
+          type: "game_view",
+          version: 1,
+          payload: this.mockGameView(p.game_id, 2),
+        });
+      }
+    }
   }
 
   private startQueueSim() {
@@ -99,7 +132,21 @@ export class MockWsClient {
         this.emit({
           type: "state_update",
           version: 1,
-          payload: { state_version: 1, state: { phase: "reinforce" } },
+          payload: {
+            state_version: 1,
+            state: {
+              game_id: gameId,
+              current_player: 0,
+              turn_phase: "Setup",
+              game_phase: "InProgress",
+              territories: Array.from({ length: 42 }, () => ({ owner: 255, troops: 0 })),
+            },
+          },
+        });
+        this.emit({
+          type: "game_view",
+          version: 1,
+          payload: this.mockGameView(gameId, 1),
         });
 
         // stop sim
@@ -112,5 +159,33 @@ export class MockWsClient {
   private emit<T>(env: Envelope<T>) {
     const msg = env as unknown as ServerToClient;
     for (const h of this.handlers) h(msg);
+  }
+
+  private mockGameView(gameId: string, stateVersion: number) {
+    return {
+      game_id: gameId,
+      state_version: stateVersion,
+      view: {
+        you_player_id: 0,
+        current_player_id: 0,
+        turn_phase: "Setup",
+        game_phase: "InProgress",
+        territories: Array.from({ length: 42 }, (_, id) => ({
+          id,
+          continent_id: Math.floor(id / 7),
+          owner_player_id: id % 4,
+          troops: (id % 5) + 1,
+        })),
+        players_public: Array.from({ length: 4 }, (_, id) => ({
+          player_id: id,
+          territories_owned: 10,
+          card_count: 2,
+          eliminated: false,
+        })),
+        your_cards: [],
+        latest_combat_roll: null,
+        action_context: { kind: "setup" },
+      },
+    };
   }
 }
