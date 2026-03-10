@@ -15,7 +15,7 @@ export function MapBoardSvg(props: Props) {
   );
 
   return (
-    <svg viewBox="0 0 900 520" className="h-[520px] w-full rounded-xl border border-white/10 bg-black/20">
+    <svg viewBox="0 0 210 297" className="h-[520px] w-full rounded-xl border border-white/10 bg-black/20">
       {MAP_EDGES.map(([from, to]) => {
         const a = MAP_TERRITORIES[from];
         const b = MAP_TERRITORIES[to];
@@ -43,30 +43,11 @@ export function MapBoardSvg(props: Props) {
             ownerPlayerId={state?.owner_player_id ?? 255}
             troops={state?.troops ?? 0}
             selected={selected}
+            secondaryHighlight={(props.selectedFrom != null && props.selectedTo == null) && ((ADJACENCY.get(props.selectedFrom)?.has(territory.id)) ?? false)}
             onClick={props.onTerritoryClick}
           />
         );
       })}
-
-      {props.selectedFrom != null && props.selectedTo == null ? (
-        <g>
-          {Array.from(ADJACENCY.get(props.selectedFrom) ?? []).map((id) => {
-            const t = MAP_TERRITORIES[id];
-            return (
-              <circle
-                key={`hint-${id}`}
-                cx={t.x}
-                cy={t.y}
-                r={24}
-                fill="none"
-                stroke="#fde047"
-                strokeWidth={2}
-                strokeDasharray="3 3"
-              />
-            );
-          })}
-        </g>
-      ) : null}
     </svg>
   );
 }

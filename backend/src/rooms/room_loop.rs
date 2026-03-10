@@ -7,11 +7,12 @@ use super::commands::RoomCommand;
 use super::manager;
 use super::types::PlayerHandle;
 use crate::game::card::new_standard_deck;
+use crate::game::model::DEFAULT_TERRITORY_COUNT;
 use crate::game::rules::{calculate_reinforcements, end_turn};
 use crate::game::{
-    ActionContext, CombatRollView, Continent, GameCore, GameError, GameEvent, GameMap, GamePhase,
-    GameState, GameView, Player, PlayerId, PlayerPublicView, ReinforcementPhase, SetupPhase,
-    TerritoryState, TerritoryView, player_id_to_u8,
+    ActionContext, CombatRollView, GameCore, GameError, GameEvent, GameMap, GamePhase, GameState,
+    GameView, Player, PlayerId, PlayerPublicView, ReinforcementPhase, SetupPhase, TerritoryState,
+    TerritoryView, player_id_to_u8,
 };
 use crate::state::AppState;
 use crate::transport::websocket::{
@@ -147,7 +148,7 @@ pub async fn run(
 }
 
 fn initialize_game_runtime(players: &[PlayerHandle]) -> (GameCore, GameState) {
-    let territory_count = 42usize;
+    let territory_count = DEFAULT_TERRITORY_COUNT;
     let ids: Vec<PlayerId> = players.iter().map(|p| p.player_id).collect();
     let mut territories = Vec::with_capacity(territory_count);
     let mut owned = vec![0u32; ids.len()];
@@ -175,27 +176,12 @@ fn initialize_game_runtime(players: &[PlayerHandle]) -> (GameCore, GameState) {
         })
         .collect();
 
-    let adjacency: Vec<Vec<usize>> = (0..territory_count)
-        .map(|i| {
-            vec![
-                (i + territory_count - 1) % territory_count,
-                (i + 1) % territory_count,
-            ]
-        })
-        .collect();
-
     let core = GameCore {
         players: game_players,
         territories,
         deck: new_standard_deck(&(0..territory_count as u32).collect::<Vec<u32>>()),
         discard: vec![],
-        map: GameMap {
-            adjacency,
-            continents: vec![Continent {
-                territories: (0..territory_count).collect(),
-                bonus: 0,
-            }],
-        },
+        map: GameMap::default_static(),
         sets_turned_in: 0,
     };
 
