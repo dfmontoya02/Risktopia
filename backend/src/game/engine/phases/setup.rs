@@ -31,7 +31,7 @@ impl SetupPhase {
 
                 let mut events = vec![GameEvent::TroopsPlaced { territory, count }];
                 if core.players.iter().all(|p| p.reserve_troops == 0) {
-                    let next_player = player;
+                    let next_player = end_turn(core, player);
                     let troops_remaining = calculate_reinforcements(core, next_player);
                     events.push(GameEvent::PhaseChanged {
                         current_player: next_player,

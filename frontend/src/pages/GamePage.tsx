@@ -217,7 +217,7 @@ export function GamePage() {
 
   return (
     <div className="min-h-full bg-zinc-950 text-white">
-      <div className="mx-auto max-w-6xl p-6">
+      <div className="mx-auto p-6">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-2xl font-semibold">Game</div>
