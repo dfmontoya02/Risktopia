@@ -15,7 +15,7 @@ export function MapBoardSvg(props: Props) {
   );
 
   return (
-    <svg viewBox="0 0 210 150" preserveAspectRatio="xMidYMid slice" className="h-full w-full rounded-xl border border-white/10 bg-red-500">
+    <svg viewBox="0 0 210 150" preserveAspectRatio="xMidYMid slice" className="h-full w-full rounded-xl border border-white/10 bg-black/20">
       {MAP_EDGES.map(([from, to]) => {
         const a = MAP_TERRITORIES[from];
         const b = MAP_TERRITORIES[to];
