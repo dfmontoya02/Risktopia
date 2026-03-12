@@ -14,6 +14,9 @@ pub enum PlayerAction {
         to: TerritoryId,
         dice: u8,
     },
+    MoveCapturedTroops {
+        count: u32,
+    },
     EndAttack,
     Fortify {
         from: TerritoryId,

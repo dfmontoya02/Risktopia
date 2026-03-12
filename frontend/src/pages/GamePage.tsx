@@ -20,9 +20,48 @@ export function GamePage() {
   const [attackDice, setAttackDice] = useState<number>(1);
   const [reinforceCount, setReinforceCount] = useState<number>(1);
   const [fortifyCount, setFortifyCount] = useState<number>(1);
+  const [captureMoveCount, setCaptureMoveCount] = useState<number>(1);
+
   const [actionError, setActionError] = useState<string | null>(null);
 
   const lastConnectionState = useRef(state);
+
+  const requestFreshState = useCallback(() => {
+    if (!gameId) return;
+    send("state_refresh", { game_id: gameId });
+  }, [gameId, send]);
+
+  function getTerritory(id: number) {
+    return view?.territories.find((territory) => territory.id === id);
+  }
+
+  const selectedFromTerritory =
+    selectedFrom != null ? getTerritory(selectedFrom) : undefined;
+
+  const maxAttackDice =
+    view?.turn_phase === "Attack" && selectedFromTerritory
+      ? Math.max(1, Math.min(3, selectedFromTerritory.troops - 1))
+      : 1;
+
+  const maxFortifyCount =
+    view?.turn_phase === "Fortify" && selectedFromTerritory
+      ? Math.max(1, selectedFromTerritory.troops - 1)
+      : 1;
+
+      const actionContext = view?.action_context ?? null;
+
+      let maxReinforceCount = 1;
+      if (actionContext && actionContext.kind === "reinforcement") {
+        maxReinforceCount = Math.max(1, actionContext.troops_remaining);
+      }  
+
+      let captureMoveBounds: { min: number; max: number } | null = null;
+      if (actionContext && actionContext.kind === "capture_move") {
+        captureMoveBounds = {
+          min: actionContext.min_troops,
+          max: actionContext.max_troops,
+        };
+      }
 
   useEffect(() => {
     return subscribe((message) => {
@@ -40,8 +79,17 @@ export function GamePage() {
 
         if (nextView.turn_phase === "Setup") {
           setReinforceCount(1);
-        } else if (nextView.action_context.kind === "reinforcement") {
-          setReinforceCount(Math.max(1, Math.min(reinforceCount, nextView.action_context.troops_remaining)));
+        } else {
+          const nextActionContext = nextView.action_context;
+          if (nextActionContext.kind === "reinforcement") {
+            setReinforceCount((current) =>
+              Math.max(1, Math.min(current, nextActionContext.troops_remaining)),
+            );
+          }
+        }
+        
+        if (nextView.action_context.kind === "capture_move") {
+          setCaptureMoveCount(nextView.action_context.min_troops);
         }
       } else if (message.type === "state_update") {
         const incomingGameId = (message as any).payload?.state?.game_id as string | undefined;
@@ -54,12 +102,7 @@ export function GamePage() {
         setActionError((message as any).payload?.message ?? "Action failed.");
       }
     });
-  }, [gameId, reinforceCount, subscribe]);
-
-  const requestFreshState = useCallback(() => {
-    if (!gameId) return;
-    send("state_refresh", { game_id: gameId });
-  }, [gameId, send]);
+  }, [gameId, subscribe]);
 
   useEffect(() => {
     requestFreshState();
@@ -74,31 +117,29 @@ export function GamePage() {
     lastConnectionState.current = state;
   }, [requestFreshState, state]);
 
-  function getTerritory(id: number) {
-    return view?.territories.find((territory) => territory.id === id);
-  }
+  useEffect(() => {
+    setAttackDice((current) => Math.max(1, Math.min(current, maxAttackDice)));
+  }, [maxAttackDice]);
 
-  const selectedFromTerritory =
-  selectedFrom != null ? getTerritory(selectedFrom) : undefined;
+  useEffect(() => {
+    setFortifyCount((current) => Math.max(1, Math.min(current, maxFortifyCount)));
+  }, [maxFortifyCount]);
 
-const maxAttackDice =
-  view?.turn_phase === "Attack" && selectedFromTerritory
-    ? Math.max(1, Math.min(3, selectedFromTerritory.troops - 1))
-    : 1;
+  useEffect(() => {
+    setReinforceCount((current) => Math.max(1, Math.min(current, maxReinforceCount)));
+  }, [maxReinforceCount]);
 
-const maxFortifyCount =
-  view?.turn_phase === "Fortify" && selectedFromTerritory
-    ? Math.max(1, selectedFromTerritory.troops - 1)
-    : 1;
-
-const maxReinforceCount =
-  view?.turn_phase === "Reinforcement" && view?.action_context.kind === "reinforcement"
-    ? Math.max(1, view.action_context.troops_remaining)
-    : 1;
+  useEffect(() => {
+    if (!captureMoveBounds) return;
+    setCaptureMoveCount((current) =>
+      Math.max(captureMoveBounds.min, Math.min(current, captureMoveBounds.max)),
+    );
+  }, [captureMoveBounds]);
 
   function onTerritoryClick(id: number) {
     if (!view) return;
     if (view.you_player_id !== view.current_player_id) return;
+    if (view.action_context.kind === "capture_move") return;
 
     const territory = getTerritory(id);
     if (!territory) return;
@@ -129,7 +170,7 @@ const maxReinforceCount =
 
       if (territory.owner_player_id === you) return;
       setSelectedTo(id);
-      return;      
+      return;
     }
 
     if (phase === "Fortify") {
@@ -146,31 +187,30 @@ const maxReinforceCount =
         return;
       }
 
-      // IMPORTANT: backend now validates owned-path fortify.
-      // Frontend should not restrict to direct adjacency anymore.
       if (territory.owner_player_id !== you) return;
 
       setSelectedTo(id);
     }
   }
 
-  useEffect(() => {
-    setAttackDice((current) => Math.max(1, Math.min(current, maxAttackDice)));
-  }, [maxAttackDice]);
-
-  useEffect(() => {
-    setFortifyCount((current) => Math.max(1, Math.min(current, maxFortifyCount)));
-  }, [maxFortifyCount]);
-
-  useEffect(() => {
-    setReinforceCount((current) => Math.max(1, Math.min(current, maxReinforceCount)));
-  }, [maxReinforceCount]);
-
   const submitAction = useCallback(() => {
     if (!view || !gameId) return;
     if (view.you_player_id !== view.current_player_id) return;
 
     setActionError(null);
+
+    if (view.action_context.kind === "capture_move") {
+      const count = Math.max(
+        view.action_context.min_troops,
+        Math.min(captureMoveCount, view.action_context.max_troops),
+      );
+
+      send("game_action", {
+        game_id: gameId,
+        action: { MoveCapturedTroops: { count } },
+      });
+      return;
+    }
 
     if (view.turn_phase === "Setup") {
       if (selectedFrom == null) return;
@@ -211,7 +251,7 @@ const maxReinforceCount =
       });
 
       return;
-    }    
+    }
 
     if (view.turn_phase === "Fortify") {
       if (selectedFrom == null || selectedTo == null) return;
@@ -231,11 +271,22 @@ const maxReinforceCount =
         },
       });
     }
-  }, [attackDice, fortifyCount, gameId, reinforceCount, selectedFrom, selectedTo, send, view]);
+  }, [
+    attackDice,
+    captureMoveCount,
+    fortifyCount,
+    gameId,
+    reinforceCount,
+    selectedFrom,
+    selectedTo,
+    send,
+    view,
+  ]);
 
   const endTurnAction = useCallback(() => {
     if (!view || !gameId) return;
     if (view.you_player_id !== view.current_player_id) return;
+    if (view.action_context.kind === "capture_move") return;
 
     setActionError(null);
 
@@ -254,21 +305,29 @@ const maxReinforceCount =
   const submitDisabled =
     !view ||
     !yourTurn ||
+    (view.action_context.kind === "capture_move" &&
+      (captureMoveBounds == null || captureMoveBounds.max < captureMoveBounds.min)) ||
     ((view.turn_phase === "Setup" || view.turn_phase === "Reinforcement") && selectedFrom == null) ||
     ((view.turn_phase === "Attack" || view.turn_phase === "Fortify") &&
+      view.action_context.kind !== "capture_move" &&
       (selectedFrom == null || selectedTo == null));
 
   const canEndTurn =
-    !!view && yourTurn && (view.turn_phase === "Attack" || view.turn_phase === "Fortify");
+    !!view &&
+    yourTurn &&
+    (view.turn_phase === "Fortify" ||
+      (view.turn_phase === "Attack" && view.action_context.kind !== "capture_move"));
 
   const endTurnLabel = view?.turn_phase === "Attack" ? "End attack" : "End turn";
 
   const selectionLabel =
-    selectedFrom == null
-      ? "none"
-      : selectedTo == null
-        ? `${selectedFrom}`
-        : `${selectedFrom} -> ${selectedTo}`;
+    view?.action_context.kind === "capture_move"
+      ? `${view.action_context.from} -> ${view.action_context.to}`
+      : selectedFrom == null
+        ? "none"
+        : selectedTo == null
+          ? `${selectedFrom}`
+          : `${selectedFrom} -> ${selectedTo}`;
 
   function playerColor(playerId: number): string {
     if (playerId < 0 || playerId >= 250) return "#6b7280";
@@ -403,11 +462,13 @@ const maxReinforceCount =
                 setReinforceCount={setReinforceCount}
                 fortifyCount={fortifyCount}
                 setFortifyCount={setFortifyCount}
+                captureMoveCount={captureMoveCount}
+                setCaptureMoveCount={setCaptureMoveCount}
                 maxAttackDice={maxAttackDice}
                 maxReinforceCount={maxReinforceCount}
                 maxFortifyCount={maxFortifyCount}
                 actionContext={view?.action_context ?? null}
-              />              
+              />
             </div>
           </div>
 

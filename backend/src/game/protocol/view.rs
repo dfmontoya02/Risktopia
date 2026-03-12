@@ -63,6 +63,12 @@ pub enum ActionContext {
     Setup {},
     Reinforcement { troops_remaining: u32 },
     Attack { captured_this_turn: bool },
+    CaptureMove {
+        from: usize,
+        to: usize,
+        min_troops: u32,
+        max_troops: u32,
+    },
     Fortify { used_fortify: bool },
     GameOver { winner_player_id: u8 },
 }

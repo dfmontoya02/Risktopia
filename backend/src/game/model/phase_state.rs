@@ -25,10 +25,20 @@ pub struct ReinforcementPhase {
     pub troops_remaining: u32,
 }
 
+use crate::game::model::TerritoryId;
+
+#[derive(Clone, Debug)]
+pub struct PendingCaptureMove {
+    pub from: TerritoryId,
+    pub to: TerritoryId,
+    pub min_troops: u32,
+}
+
 #[derive(Clone, Debug)]
 pub struct AttackPhase {
     pub player: PlayerId,
     pub captured_this_turn: bool,
+    pub pending_capture: Option<PendingCaptureMove>,
 }
 
 #[derive(Clone, Debug)]

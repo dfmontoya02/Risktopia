@@ -37,6 +37,7 @@ impl ReinforcementPhase {
                         GameState::Attack(AttackPhase {
                             player,
                             captured_this_turn: false,
+                            pending_capture: None,
                         }),
                         events,
                     ));

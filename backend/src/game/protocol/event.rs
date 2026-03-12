@@ -20,6 +20,11 @@ pub enum GameEvent {
         territory: TerritoryId,
         new_owner: PlayerId,
     },
+    TroopsMovedAfterCapture {
+        from: TerritoryId,
+        to: TerritoryId,
+        count: u32,
+    },
     PlayerEliminated {
         player: PlayerId,
     },

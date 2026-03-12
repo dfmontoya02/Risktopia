@@ -2,37 +2,41 @@ type ActionContext =
   | { kind: "setup" }
   | { kind: "reinforcement"; troops_remaining: number }
   | { kind: "attack"; captured_this_turn: boolean }
+  | { kind: "capture_move"; from: number; to: number; min_troops: number; max_troops: number }
   | { kind: "fortify"; used_fortify: boolean }
   | { kind: "game_over"; winner_player_id: number }
   | null;
 
-  type Props = {
-    phase: string;
-    yourTurn: boolean;
-    selectionLabel: string;
-    onClear: () => void;
-    onRefresh: () => void;
-    onEndTurn: () => void;
-    endTurnLabel: string;
-    endTurnDisabled: boolean;
-    onSubmit: () => void;
-    submitDisabled: boolean;
-  
-    attackDice: number;
-    setAttackDice: (value: number) => void;
-  
-    reinforceCount: number;
-    setReinforceCount: (value: number) => void;
-  
-    fortifyCount: number;
-    setFortifyCount: (value: number) => void;
-  
-    maxAttackDice: number;
-    maxReinforceCount: number;
-    maxFortifyCount: number;
-  
-    actionContext: ActionContext;
-  };
+type Props = {
+  phase: string;
+  yourTurn: boolean;
+  selectionLabel: string;
+  onClear: () => void;
+  onRefresh: () => void;
+  onEndTurn: () => void;
+  endTurnLabel: string;
+  endTurnDisabled: boolean;
+  onSubmit: () => void;
+  submitDisabled: boolean;
+
+  attackDice: number;
+  setAttackDice: (value: number) => void;
+
+  reinforceCount: number;
+  setReinforceCount: (value: number) => void;
+
+  fortifyCount: number;
+  setFortifyCount: (value: number) => void;
+
+  captureMoveCount: number;
+  setCaptureMoveCount: (value: number) => void;
+
+  maxAttackDice: number;
+  maxReinforceCount: number;
+  maxFortifyCount: number;
+
+  actionContext: ActionContext;
+};
 
 export function ActionBar(props: Props) {
   return (
@@ -45,7 +49,40 @@ export function ActionBar(props: Props) {
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
-        {props.phase === "Reinforcement" && props.actionContext?.kind === "reinforcement" ? (
+        {props.actionContext?.kind === "capture_move" ? (() => {
+            const captureContext = props.actionContext;
+            return (
+              <div className="flex flex-col gap-1 rounded-lg border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+                <div className="font-semibold">Move troops into captured territory</div>
+                <div>
+                  From {captureContext.from} → {captureContext.to}
+                </div>
+                <div>
+                  Min: {captureContext.min_troops} • Max: {captureContext.max_troops}
+                </div>
+                <label className="mt-1 text-sm text-white/90">
+                  Troops
+                  <input
+                    type="number"
+                    min={captureContext.min_troops}
+                    max={captureContext.max_troops}
+                    value={props.captureMoveCount}
+                    onChange={(e) =>
+                      props.setCaptureMoveCount(
+                        Math.max(
+                          captureContext.min_troops,
+                          Math.min(Number(e.target.value), captureContext.max_troops),
+                        ),
+                      )
+                    }
+                    className="ml-2 w-20 rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-white"
+                  />
+                </label>
+              </div>
+            );
+          })() : null}
+          
+          {props.phase === "Reinforcement" && props.actionContext?.kind === "reinforcement" ? (
             <label className="text-sm text-white/80">
               Troops
               <input
@@ -61,9 +98,9 @@ export function ActionBar(props: Props) {
                 className="ml-2 w-20 rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-white"
               />
             </label>
-          ) : null}          
+          ) : null}
 
-          {props.phase === "Attack" ? (
+          {props.phase === "Attack" && props.actionContext?.kind === "attack" ? (
             <label className="text-sm text-white/80">
               Dice
               <select
@@ -100,7 +137,7 @@ export function ActionBar(props: Props) {
                 className="ml-2 w-20 rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-white"
               />
             </label>
-          ) : null}          
+          ) : null}
 
           <button
             className="rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/15"

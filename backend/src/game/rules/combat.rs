@@ -4,11 +4,20 @@ use rand::Rng;
 
 use super::ownership::adjust_ownership;
 
+#[derive(Debug, Clone)]
+pub struct PendingCaptureMoveResult {
+    pub from: TerritoryId,
+    pub to: TerritoryId,
+    pub min_troops: u32,
+}
+
+
 #[derive(Debug, Default)]
 pub struct AttackResolution {
     pub events: Vec<GameEvent>,
     pub captured: bool,
     pub roll: CombatRoll,
+    pub pending_capture: Option<PendingCaptureMoveResult>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -100,18 +109,15 @@ pub fn resolve_attack(
     }];
 
     let mut captured = false;
+    let mut pending_capture = None;
+
     if core.territories[to].troops == 0 {
         captured = true;
         let defender_id = core.territories[to].owner;
+
+        // Transfer ownership immediately, but do not move troops yet.
         core.territories[to].owner = player;
-
-        let troops_to_move = attacker_dice;
-        if core.territories[from].troops <= troops_to_move {
-            return Err(GameError::NotEnoughTroops);
-        }
-
-        core.territories[from].troops -= troops_to_move;
-        core.territories[to].troops = troops_to_move;
+        core.territories[to].troops = 0;
 
         adjust_ownership(core, player, defender_id);
 
@@ -127,6 +133,12 @@ pub fn resolve_attack(
                 player: defender_id,
             });
         }
+
+        pending_capture = Some(PendingCaptureMoveResult {
+            from,
+            to,
+            min_troops: attacker_dice,
+        });
     }
 
     Ok(AttackResolution {
@@ -140,6 +152,7 @@ pub fn resolve_attack(
             attacker_losses,
             defender_losses,
         },
+        pending_capture,
     })
 }
 

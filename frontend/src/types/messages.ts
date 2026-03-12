@@ -65,6 +65,7 @@ export type ActionContext =
   | { kind: "setup" }
   | { kind: "reinforcement"; troops_remaining: number }
   | { kind: "attack"; captured_this_turn: boolean }
+  | { kind: "capture_move"; from: number; to: number; min_troops: number; max_troops: number }
   | { kind: "fortify"; used_fortify: boolean }
   | { kind: "game_over"; winner_player_id: number };
 
@@ -136,11 +137,12 @@ export type ServerToClient =
 export type PlayerAction =
   | { PlaceTroops: { territory: number; count: number } }
   | { Attack: { from: number; to: number; dice: number } }
+  | { MoveCapturedTroops: { count: number } }
   | { EndAttack: null }
   | { Fortify: { from: number; to: number; count: number } }
   | { PlayCards: { cards: [number, number, number] } }
   | { EndTurn: null };
-
+  
 export type GameActionPayload = {
   game_id: string;
   action: PlayerAction;

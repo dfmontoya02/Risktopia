@@ -380,8 +380,21 @@ fn build_game_view_for_player(
         GameState::Reinforcement(phase) => ActionContext::Reinforcement {
             troops_remaining: phase.troops_remaining,
         },
-        GameState::Attack(phase) => ActionContext::Attack {
-            captured_this_turn: phase.captured_this_turn,
+        GameState::Attack(phase) => {
+            if let Some(pending) = &phase.pending_capture {
+                let max_troops = core.territories[pending.from].troops.saturating_sub(1);
+        
+                ActionContext::CaptureMove {
+                    from: pending.from as usize,
+                    to: pending.to as usize,
+                    min_troops: pending.min_troops,
+                    max_troops,
+                }
+            } else {
+                ActionContext::Attack {
+                    captured_this_turn: phase.captured_this_turn,
+                }
+            }
         },
         GameState::Fortify(phase) => ActionContext::Fortify {
             used_fortify: phase.used_fortify,
@@ -694,6 +707,7 @@ mod tests {
         let state = GameState::Attack(crate::game::AttackPhase {
             player: PlayerId(0),
             captured_this_turn: false,
+            pending_capture: None,
         });
 
         let view_for_p0 = build_game_view_for_player(&core, &state, PlayerId(0), None);
