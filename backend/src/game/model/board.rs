@@ -2,70 +2,54 @@ use super::ids::{PlayerId, TerritoryId};
 
 pub const DEFAULT_TERRITORY_COUNT: usize = 42;
 
-// const TERRITORY_NAMES: [&str; DEFAULT_TERRITORY_COUNT] = [
-//     // North America: Continent 0
-//     "Alaska", // 0
-//     "Northwest Territory", // 1
-//     "Greenland", // 2
-//     "Alberta", // 3
-//     "Ontario", // 4
-//     "Eastern Canada", // 5
-//     "Western US", // 6
-//     "Eastern US", // 7
-//     "Central America", // 8
-//     // South America: Continent 1
-//     "Venezuela", // 9
-//     "Peru", // 10
-//     "Brazil", // 11
-//     "Argentina", // 12
-//     // Africa: Continent 2
-//     "North Africa", // 13
-//     "Egypt", // 14
-//     "East Africa", // 15
-//     "Central Africa", // 16; Congo
-//     "South Africa", // 17
-//     "Madagascar", // 18
-//     // Europe: Continent 3
-//     "Iceland", // 19
-//     "Scandinavia", // 20
-//     "Russia", // 21
-//     "Great Britain", // 22
-//     "Northern Europe", // 23
-//     "Western Europe", // 24
-//     "Southern Europe", // 25
-//     // Asia: Continent 4
-//     "Ural", // 26
-//     "Siberia", // 27
-//     "Yakutsk", // 28
-//     "Irkutsk", // 29
-//     "Kamchatka", // 30
-//     "Afghanistan", // 31
-//     "Middle East", // 32
-//     "India", // 33
-//     "Mongolia", // 34
-//     "China", // 35
-//     "Japan", // 36
-//     "Southeast Asia", // 37
-//     // Australia: Continent 5
-//     "Indonesia", // 38
-//     "New Guinea", // 39
-//     "Western Australia", // 40
-//     "Eastern Australia", // 41
-// ];
-// Continent 0: North America (9 territories)
-// Continent 1: South America (4 territories)
-// Continent 2: Africa (6 territories)
-// Continent 3: Europe (7 territories)
-// Continent 4: Asia (12 territories)
-// Continent 5: Australia (4 territories)
-// Total: 42 territories
+// Canonical territory order shared with frontend mapData.ts:
+//
+// 0  Alaska
+// 1  Northwest Territory
+// 2  Greenland
+// 3  Alberta
+// 4  Ontario
+// 5  Eastern Canada
+// 6  Western United States
+// 7  Eastern United States
+// 8  Central America
+// 9  Venezuela
+// 10 Peru
+// 11 Brazil
+// 12 Argentina
+// 13 North Africa
+// 14 Egypt
+// 15 East Africa
+// 16 Central Africa
+// 17 South Africa
+// 18 Madagascar
+// 19 Iceland
+// 20 Scandinavia
+// 21 Russia
+// 22 Great Britain
+// 23 Northern Europe
+// 24 Western Europe
+// 25 Southern Europe
+// 26 Ural
+// 27 Siberia
+// 28 Yakutsk
+// 29 Irkutsk
+// 30 Kamchatka
+// 31 Afghanistan
+// 32 Middle East
+// 33 India
+// 34 Mongolia
+// 35 China
+// 36 Japan
+// 37 Southeast Asia
+// 38 Indonesia
+// 39 New Guinea
+// 40 Western Australia
+// 41 Eastern Australia
 
-/// Static default adjacency for the built-in map.
-///
-/// Each row is `[a, b]` meaning the territory has edges to `a` and `b`.
-/// Currently this is a simple ring topology (each territory adjacent to its
-/// immediate predecessor and successor).
-pub const DEFAULT_ADJACENCY: [[TerritoryId; 2]; 83] = [
+/// Undirected edge list for the built-in Risk map.
+/// Each entry is a connection between two adjacent territories.
+pub const DEFAULT_EDGES: [[TerritoryId; 2]; 83] = [
     // North America
     [0, 1], // Alaska to Northwest Territory
     [0, 3], // Alaska to Alberta
@@ -83,12 +67,14 @@ pub const DEFAULT_ADJACENCY: [[TerritoryId; 2]; 83] = [
     [6, 7], // Western US to Eastern US
     [6, 8], // Western US to Central America
     [7, 8], // Eastern US to Central America
+
     // South America
     [9, 10],  // Venezuela to Peru
     [9, 11],  // Venezuela to Brazil
     [10, 11], // Peru to Brazil
     [10, 12], // Peru to Argentina
     [11, 12], // Brazil to Argentina
+
     // Africa
     [13, 14], // North Africa to Egypt
     [13, 15], // North Africa to East Africa
@@ -99,6 +85,7 @@ pub const DEFAULT_ADJACENCY: [[TerritoryId; 2]; 83] = [
     [15, 18], // East Africa to Madagascar
     [16, 17], // Central Africa to South Africa
     [17, 18], // South Africa to Madagascar
+
     // Europe
     [19, 22], // Iceland to Great Britain
     [19, 20], // Iceland to Scandinavia
@@ -112,7 +99,7 @@ pub const DEFAULT_ADJACENCY: [[TerritoryId; 2]; 83] = [
     [23, 21], // Northern Europe to Russia
     [24, 25], // Western Europe to Southern Europe
     [25, 21], // Southern Europe to Russia
-    // Asia
+
     // Asia
     [26, 27], // Ural to Siberia
     [26, 35], // Ural to China
@@ -136,14 +123,15 @@ pub const DEFAULT_ADJACENCY: [[TerritoryId; 2]; 83] = [
     [34, 35], // Mongolia to China
     [34, 36], // Mongolia to Japan
     [35, 37], // China to Southeast Asia
-    // Australia
+
     // Australia
     [38, 39], // Indonesia to New Guinea
     [38, 40], // Indonesia to Western Australia
     [39, 40], // New Guinea to Western Australia
     [39, 41], // New Guinea to Eastern Australia
     [40, 41], // Western Australia to Eastern Australia
-    // Connect continents
+
+    // Inter-continent connections
     [0, 30],  // Alaska to Kamchatka
     [2, 19],  // Greenland to Iceland
     [8, 9],   // Central America to Venezuela
@@ -159,6 +147,7 @@ pub const DEFAULT_ADJACENCY: [[TerritoryId; 2]; 83] = [
     [21, 31], // Russia to Afghanistan
     [37, 38], // Southeast Asia to Indonesia
 ];
+
 // Default continents are described as static specs (slice of territories + bonus)
 // and converted into owned `Continent` values at runtime.
 pub const DEFAULT_CONTINENT_SPECS: [(&[TerritoryId], u32); 6] = [
@@ -175,6 +164,7 @@ pub const DEFAULT_CONTINENT_SPECS: [(&[TerritoryId], u32); 6] = [
     // Australia
     (&[38, 39, 40, 41], 2),
 ];
+
 #[derive(Clone, Debug)]
 pub struct GameMap {
     pub adjacency: Vec<Vec<TerritoryId>>,
@@ -189,7 +179,18 @@ pub struct Continent {
 
 impl GameMap {
     pub fn default_static() -> Self {
-        let adjacency = DEFAULT_ADJACENCY.iter().map(|pair| pair.to_vec()).collect();
+        let mut adjacency = vec![Vec::<TerritoryId>::new(); DEFAULT_TERRITORY_COUNT];
+
+        for [a, b] in DEFAULT_EDGES {
+            adjacency[a].push(b);
+            adjacency[b].push(a);
+        }
+
+        // Keep adjacency deterministic and duplicate-free.
+        for neighbors in &mut adjacency {
+            neighbors.sort_unstable();
+            neighbors.dedup();
+        }
 
         let continents = DEFAULT_CONTINENT_SPECS
             .iter()

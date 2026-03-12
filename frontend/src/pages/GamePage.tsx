@@ -5,7 +5,7 @@ import { ChatPanel } from "../components/ChatPanel";
 import { useWs } from "../net/WebSocketProvider";
 import type { GameView } from "../types/messages";
 import { ActionBar } from "../features/game/ActionBar";
-import { ADJACENCY, PLAYER_COLORS } from "../features/game/mapData";
+import { PLAYER_COLORS } from "../features/game/mapData";
 import { MapBoardSvg } from "../features/game/MapBoardSvg";
 
 export function GamePage() {
@@ -78,8 +78,25 @@ export function GamePage() {
     return view?.territories.find((territory) => territory.id === id);
   }
 
+  const selectedFromTerritory =
+  selectedFrom != null ? getTerritory(selectedFrom) : undefined;
+
+const maxAttackDice =
+  view?.turn_phase === "Attack" && selectedFromTerritory
+    ? Math.max(1, Math.min(3, selectedFromTerritory.troops - 1))
+    : 1;
+
+const maxFortifyCount =
+  view?.turn_phase === "Fortify" && selectedFromTerritory
+    ? Math.max(1, selectedFromTerritory.troops - 1)
+    : 1;
+
+const maxReinforceCount =
+  view?.turn_phase === "Reinforcement" && view?.action_context.kind === "reinforcement"
+    ? Math.max(1, view.action_context.troops_remaining)
+    : 1;
+
   function onTerritoryClick(id: number) {
-    console.log("Territory clicked:", id);
     if (!view) return;
     if (view.you_player_id !== view.current_player_id) return;
 
@@ -137,6 +154,18 @@ export function GamePage() {
     }
   }
 
+  useEffect(() => {
+    setAttackDice((current) => Math.max(1, Math.min(current, maxAttackDice)));
+  }, [maxAttackDice]);
+
+  useEffect(() => {
+    setFortifyCount((current) => Math.max(1, Math.min(current, maxFortifyCount)));
+  }, [maxFortifyCount]);
+
+  useEffect(() => {
+    setReinforceCount((current) => Math.max(1, Math.min(current, maxReinforceCount)));
+  }, [maxReinforceCount]);
+
   const submitAction = useCallback(() => {
     if (!view || !gameId) return;
     if (view.you_player_id !== view.current_player_id) return;
@@ -170,32 +199,19 @@ export function GamePage() {
 
     if (view.turn_phase === "Attack") {
       if (selectedFrom == null || selectedTo == null) return;
-    
+
       const from = getTerritory(selectedFrom);
-      const to = getTerritory(selectedTo);
-    
       if (!from || from.troops <= 1) return;
-    
-      const maxDice = Math.min(3, from.troops - 1);
-    
-      console.log("ATTACK ACTION SENT", {
-        fromId: selectedFrom,
-        toId: selectedTo,
-        fromTerritory: from,
-        toTerritory: to,
-        dice: maxDice,
-      });
 
-      console.log("Frontend adjacency for fromId", selectedFrom, ADJACENCY.get(selectedFrom));
+      const dice = Math.max(1, Math.min(attackDice, Math.min(3, from.troops - 1)));
 
-    
       send("game_action", {
         game_id: gameId,
-        action: { Attack: { from: selectedFrom, to: selectedTo, dice: maxDice } },
+        action: { Attack: { from: selectedFrom, to: selectedTo, dice } },
       });
-    
+
       return;
-    }
+    }    
 
     if (view.turn_phase === "Fortify") {
       if (selectedFrom == null || selectedTo == null) return;
@@ -387,8 +403,11 @@ export function GamePage() {
                 setReinforceCount={setReinforceCount}
                 fortifyCount={fortifyCount}
                 setFortifyCount={setFortifyCount}
+                maxAttackDice={maxAttackDice}
+                maxReinforceCount={maxReinforceCount}
+                maxFortifyCount={maxFortifyCount}
                 actionContext={view?.action_context ?? null}
-              />
+              />              
             </div>
           </div>
 

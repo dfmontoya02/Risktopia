@@ -6,29 +6,33 @@ type ActionContext =
   | { kind: "game_over"; winner_player_id: number }
   | null;
 
-type Props = {
-  phase: string;
-  yourTurn: boolean;
-  selectionLabel: string;
-  onClear: () => void;
-  onRefresh: () => void;
-  onEndTurn: () => void;
-  endTurnLabel: string;
-  endTurnDisabled: boolean;
-  onSubmit: () => void;
-  submitDisabled: boolean;
-
-  attackDice: number;
-  setAttackDice: (value: number) => void;
-
-  reinforceCount: number;
-  setReinforceCount: (value: number) => void;
-
-  fortifyCount: number;
-  setFortifyCount: (value: number) => void;
-
-  actionContext: ActionContext;
-};
+  type Props = {
+    phase: string;
+    yourTurn: boolean;
+    selectionLabel: string;
+    onClear: () => void;
+    onRefresh: () => void;
+    onEndTurn: () => void;
+    endTurnLabel: string;
+    endTurnDisabled: boolean;
+    onSubmit: () => void;
+    submitDisabled: boolean;
+  
+    attackDice: number;
+    setAttackDice: (value: number) => void;
+  
+    reinforceCount: number;
+    setReinforceCount: (value: number) => void;
+  
+    fortifyCount: number;
+    setFortifyCount: (value: number) => void;
+  
+    maxAttackDice: number;
+    maxReinforceCount: number;
+    maxFortifyCount: number;
+  
+    actionContext: ActionContext;
+  };
 
 export function ActionBar(props: Props) {
   return (
@@ -41,31 +45,41 @@ export function ActionBar(props: Props) {
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
-          {props.phase === "Reinforcement" && props.actionContext?.kind === "reinforcement" ? (
+        {props.phase === "Reinforcement" && props.actionContext?.kind === "reinforcement" ? (
             <label className="text-sm text-white/80">
               Troops
               <input
                 type="number"
                 min={1}
-                max={props.actionContext.troops_remaining}
+                max={props.maxReinforceCount}
                 value={props.reinforceCount}
-                onChange={(e) => props.setReinforceCount(Number(e.target.value))}
+                onChange={(e) =>
+                  props.setReinforceCount(
+                    Math.max(1, Math.min(Number(e.target.value), props.maxReinforceCount)),
+                  )
+                }
                 className="ml-2 w-20 rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-white"
               />
             </label>
-          ) : null}
+          ) : null}          
 
           {props.phase === "Attack" ? (
             <label className="text-sm text-white/80">
               Dice
               <select
-                value={props.attackDice}
-                onChange={(e) => props.setAttackDice(Number(e.target.value))}
+                value={Math.min(props.attackDice, props.maxAttackDice)}
+                onChange={(e) =>
+                  props.setAttackDice(
+                    Math.max(1, Math.min(Number(e.target.value), props.maxAttackDice)),
+                  )
+                }
                 className="ml-2 rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-white"
               >
-                <option value={1}>1</option>
-                <option value={2}>2</option>
-                <option value={3}>3</option>
+                {Array.from({ length: props.maxAttackDice }, (_, i) => i + 1).map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
@@ -76,12 +90,17 @@ export function ActionBar(props: Props) {
               <input
                 type="number"
                 min={1}
+                max={props.maxFortifyCount}
                 value={props.fortifyCount}
-                onChange={(e) => props.setFortifyCount(Number(e.target.value))}
+                onChange={(e) =>
+                  props.setFortifyCount(
+                    Math.max(1, Math.min(Number(e.target.value), props.maxFortifyCount)),
+                  )
+                }
                 className="ml-2 w-20 rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-white"
               />
             </label>
-          ) : null}
+          ) : null}          
 
           <button
             className="rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/15"

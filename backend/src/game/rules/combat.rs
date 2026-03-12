@@ -34,9 +34,16 @@ pub fn resolve_attack(
     if from == to {
         return Err(GameError::InvalidAction);
     }
+    println!(
+        "resolve_attack debug: from={} to={} backend_adjacency={:?}",
+        from,
+        to,
+        core.map.adjacency[from]
+    );
+    
     if !core.map.adjacency[from].contains(&to) {
         return Err(GameError::NotAdjacent);
-    }
+    }    
     if core.territories[from].owner != player {
         return Err(GameError::InvalidOwner);
     }
