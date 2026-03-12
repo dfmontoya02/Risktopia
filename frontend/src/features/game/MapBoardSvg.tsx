@@ -1,5 +1,5 @@
 import type { TerritoryView } from "../../types/messages";
-import { ADJACENCY, MAP_EDGES, MAP_TERRITORIES } from "./mapData";
+import { MAP_EDGES, MAP_TERRITORIES } from "./mapData";
 import { TerritoryNode } from "./TerritoryNode";
 
 type Props = {
@@ -15,7 +15,11 @@ export function MapBoardSvg(props: Props) {
   );
 
   return (
-    <svg viewBox="0 0 210 150" preserveAspectRatio="xMidYMid slice" className="h-full w-full rounded-xl border border-white/10 bg-black/20">
+    <svg
+      viewBox="0 0 210 150"
+      preserveAspectRatio="xMidYMid slice"
+      className="h-full w-full rounded-xl border border-white/10 bg-black/20"
+    >
       {MAP_EDGES.map(([from, to]) => {
         const a = MAP_TERRITORIES[from];
         const b = MAP_TERRITORIES[to];
@@ -35,7 +39,9 @@ export function MapBoardSvg(props: Props) {
 
       {MAP_TERRITORIES.map((territory) => {
         const state = territoryById.get(territory.id);
-        const selected = territory.id === props.selectedFrom || territory.id === props.selectedTo;
+        const selected =
+          territory.id === props.selectedFrom || territory.id === props.selectedTo;
+
         return (
           <TerritoryNode
             key={territory.id}
@@ -43,7 +49,7 @@ export function MapBoardSvg(props: Props) {
             ownerPlayerId={state?.owner_player_id ?? 255}
             troops={state?.troops ?? 0}
             selected={selected}
-            secondaryHighlight={(props.selectedFrom != null && props.selectedTo == null) && ((ADJACENCY.get(props.selectedFrom)?.has(territory.id)) ?? false)}
+            secondaryHighlight={false}
             onClick={props.onTerritoryClick}
           />
         );

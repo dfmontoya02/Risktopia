@@ -27,13 +27,13 @@ export function TerritoryNode(props: Props) {
       className="cursor-pointer hover:brightness-110"
     >
       {props.territory.paths.map((d, i) => (
-  <path
-    key={i}
-    d={d}
-    fill={fillColor}
-    stroke={props.selected ? "#fef08a" : "#111827"}
-    strokeWidth={props.selected ? 1.5 : (props.secondaryHighlight ? 1 : 0.5) }
-  />
+        <path
+  key={i}
+  d={d}
+  fill={fillColor}
+  stroke={props.selected ? "#fef08a" : props.secondaryHighlight ? "#e5e7eb" : "#111827"}
+  strokeWidth={props.selected ? 1.8 : props.secondaryHighlight ? 1.1 : 0.5}
+/>  
 ))}
 
       {/* Troop marker */}

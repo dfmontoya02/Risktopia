@@ -11,10 +11,17 @@ import { MapBoardSvg } from "../features/game/MapBoardSvg";
 export function GamePage() {
   const { gameId } = useParams();
   const { subscribe, send, state } = useWs();
+
   const [stateVersion, setStateVersion] = useState<number>(0);
   const [view, setView] = useState<GameView | null>(null);
   const [selectedFrom, setSelectedFrom] = useState<number | null>(null);
   const [selectedTo, setSelectedTo] = useState<number | null>(null);
+
+  const [attackDice, setAttackDice] = useState<number>(1);
+  const [reinforceCount, setReinforceCount] = useState<number>(1);
+  const [fortifyCount, setFortifyCount] = useState<number>(1);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const lastConnectionState = useRef(state);
 
   useEffect(() => {
@@ -22,18 +29,32 @@ export function GamePage() {
       if (message.type === "game_view") {
         const incomingGameId = (message as any).payload?.game_id as string | undefined;
         if (incomingGameId && incomingGameId !== gameId) return;
+
         setStateVersion((message as any).payload.state_version ?? 0);
-        setView((message as any).payload.view as GameView);
+        const nextView = (message as any).payload.view as GameView;
+        setView(nextView);
+
         setSelectedFrom(null);
         setSelectedTo(null);
+        setActionError(null);
+
+        if (nextView.turn_phase === "Setup") {
+          setReinforceCount(1);
+        } else if (nextView.action_context.kind === "reinforcement") {
+          setReinforceCount(Math.max(1, Math.min(reinforceCount, nextView.action_context.troops_remaining)));
+        }
       } else if (message.type === "state_update") {
         const incomingGameId = (message as any).payload?.state?.game_id as string | undefined;
         if (incomingGameId && incomingGameId !== gameId) return;
         const v = (message as any).payload.state_version ?? 0;
         setStateVersion(v);
+      } else if (message.type === "action_error" || message.type === "protocol_error") {
+        const incomingGameId = (message as any).payload?.game_id as string | undefined;
+        if (incomingGameId && incomingGameId !== gameId) return;
+        setActionError((message as any).payload?.message ?? "Action failed.");
       }
     });
-  }, [gameId, subscribe]);
+  }, [gameId, reinforceCount, subscribe]);
 
   const requestFreshState = useCallback(() => {
     if (!gameId) return;
@@ -58,15 +79,18 @@ export function GamePage() {
   }
 
   function onTerritoryClick(id: number) {
+    console.log("Territory clicked:", id);
     if (!view) return;
     if (view.you_player_id !== view.current_player_id) return;
+
     const territory = getTerritory(id);
     if (!territory) return;
 
     const you = view.you_player_id;
     const phase = view.turn_phase;
+
     if (phase === "Setup" || phase === "Reinforcement") {
-      if (territory.owner_player_id !== you && territory.troops > 0) return;
+      if (territory.owner_player_id !== you) return;
       setSelectedFrom(id);
       setSelectedTo(null);
       return;
@@ -86,11 +110,9 @@ export function GamePage() {
         return;
       }
 
-      const adjacent = ADJACENCY.get(selectedFrom);
-      if (!adjacent?.has(id)) return;
       if (territory.owner_player_id === you) return;
       setSelectedTo(id);
-      return;
+      return;      
     }
 
     if (phase === "Fortify") {
@@ -100,23 +122,28 @@ export function GamePage() {
         setSelectedTo(null);
         return;
       }
+
       if (id === selectedFrom) {
         setSelectedFrom(null);
         setSelectedTo(null);
         return;
       }
-      const adjacent = ADJACENCY.get(selectedFrom);
-      if (!adjacent?.has(id)) return;
+
+      // IMPORTANT: backend now validates owned-path fortify.
+      // Frontend should not restrict to direct adjacency anymore.
       if (territory.owner_player_id !== you) return;
+
       setSelectedTo(id);
     }
   }
 
-  function submitAction() {
+  const submitAction = useCallback(() => {
     if (!view || !gameId) return;
     if (view.you_player_id !== view.current_player_id) return;
 
-    if (view.turn_phase === "Setup" || view.turn_phase === "Reinforcement") {
+    setActionError(null);
+
+    if (view.turn_phase === "Setup") {
       if (selectedFrom == null) return;
       send("game_action", {
         game_id: gameId,
@@ -125,15 +152,48 @@ export function GamePage() {
       return;
     }
 
+    if (view.turn_phase === "Reinforcement") {
+      if (selectedFrom == null) return;
+      const troopsRemaining =
+        view.action_context.kind === "reinforcement"
+          ? view.action_context.troops_remaining
+          : 1;
+
+      const count = Math.max(1, Math.min(reinforceCount, troopsRemaining));
+
+      send("game_action", {
+        game_id: gameId,
+        action: { PlaceTroops: { territory: selectedFrom, count } },
+      });
+      return;
+    }
+
     if (view.turn_phase === "Attack") {
       if (selectedFrom == null || selectedTo == null) return;
+    
       const from = getTerritory(selectedFrom);
+      const to = getTerritory(selectedTo);
+    
       if (!from || from.troops <= 1) return;
+    
       const maxDice = Math.min(3, from.troops - 1);
+    
+      console.log("ATTACK ACTION SENT", {
+        fromId: selectedFrom,
+        toId: selectedTo,
+        fromTerritory: from,
+        toTerritory: to,
+        dice: maxDice,
+      });
+
+      console.log("Frontend adjacency for fromId", selectedFrom, ADJACENCY.get(selectedFrom));
+
+    
       send("game_action", {
         game_id: gameId,
         action: { Attack: { from: selectedFrom, to: selectedTo, dice: maxDice } },
       });
+    
       return;
     }
 
@@ -141,22 +201,27 @@ export function GamePage() {
       if (selectedFrom == null || selectedTo == null) return;
       const from = getTerritory(selectedFrom);
       if (!from || from.troops <= 1) return;
+
+      const count = Math.max(1, Math.min(fortifyCount, from.troops - 1));
+
       send("game_action", {
         game_id: gameId,
         action: {
           Fortify: {
             from: selectedFrom,
             to: selectedTo,
-            count: from.troops - 1,
+            count,
           },
         },
       });
     }
-  }
+  }, [attackDice, fortifyCount, gameId, reinforceCount, selectedFrom, selectedTo, send, view]);
 
-  function endTurnAction() {
+  const endTurnAction = useCallback(() => {
     if (!view || !gameId) return;
     if (view.you_player_id !== view.current_player_id) return;
+
+    setActionError(null);
 
     if (view.turn_phase === "Attack") {
       send("game_action", { game_id: gameId, action: { EndAttack: null } });
@@ -166,16 +231,20 @@ export function GamePage() {
     if (view.turn_phase === "Fortify") {
       send("game_action", { game_id: gameId, action: { EndTurn: null } });
     }
-  }
+  }, [gameId, send, view]);
 
   const yourTurn = !!view && view.you_player_id === view.current_player_id;
+
   const submitDisabled =
     !view ||
     !yourTurn ||
     ((view.turn_phase === "Setup" || view.turn_phase === "Reinforcement") && selectedFrom == null) ||
     ((view.turn_phase === "Attack" || view.turn_phase === "Fortify") &&
       (selectedFrom == null || selectedTo == null));
-  const canEndTurn = !!view && yourTurn && (view.turn_phase === "Attack" || view.turn_phase === "Fortify");
+
+  const canEndTurn =
+    !!view && yourTurn && (view.turn_phase === "Attack" || view.turn_phase === "Fortify");
+
   const endTurnLabel = view?.turn_phase === "Attack" ? "End attack" : "End turn";
 
   const selectionLabel =
@@ -235,15 +304,22 @@ export function GamePage() {
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-12">
-          {/* Left: status */}
           <div className="lg:col-span-3 rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="font-semibold">Status</div>
             <div className="mt-2 text-sm text-white/70">
-              Turn: {view ? `${view.current_player_id}` : "-"} • Phase: {view?.turn_phase ?? "-"}
+              Turn: {view ? `P${view.current_player_id}` : "-"} • Phase: {view?.turn_phase ?? "-"}
             </div>
+
             {!view ? (
               <div className="mt-2 text-sm text-amber-300">Waiting for state sync...</div>
             ) : null}
+
+            {actionError ? (
+              <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                {actionError}
+              </div>
+            ) : null}
+
             <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
               <div className="font-semibold text-white">Your cards ({view?.your_cards.length ?? 0})</div>
               <div className="mt-2 max-h-40 overflow-auto text-xs text-white/70">
@@ -253,7 +329,8 @@ export function GamePage() {
                   </div>
                 ))}
               </div>
-              <div className="mt-3 font-semibold text-white">Player card counts</div>
+
+              <div className="mt-3 font-semibold text-white">Players</div>
               <div className="mt-1 text-xs text-white/70">
                 {(view?.players_public ?? []).map((player) => (
                   <div key={player.player_id} className="flex items-center gap-2">
@@ -261,20 +338,25 @@ export function GamePage() {
                       className="inline-block h-2.5 w-2.5 rounded-full border border-white/20"
                       style={{ backgroundColor: playerColor(player.player_id) }}
                     />
-                    P{player.player_id}: {player.card_count}
+                    P{player.player_id}: {player.territories_owned} territories, {player.card_count} cards
+                    {player.eliminated ? " (eliminated)" : ""}
                   </div>
                 ))}
               </div>
+
               {view?.latest_combat_roll ? (
                 <div className="mt-3 text-xs text-amber-200">
-                  Latest roll {view.latest_combat_roll.attacker_rolls.join(" ")} {"->"}{" "}
-                  {view.latest_combat_roll.defender_rolls.join(" ")}
+                  <div>Attack: {view.latest_combat_roll.from} → {view.latest_combat_roll.to}</div>
+                  <div>Attacker: {view.latest_combat_roll.attacker_rolls.join(" ")}</div>
+                  <div>Defender: {view.latest_combat_roll.defender_rolls.join(" ")}</div>
+                  <div>
+                    Losses: A-{view.latest_combat_roll.attacker_losses} / D-{view.latest_combat_roll.defender_losses}
+                  </div>
                 </div>
               ) : null}
             </div>
           </div>
 
-          {/* Center: board */}
           <div className="lg:col-span-6 rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="font-semibold">Board</div>
             <div className="mt-3">
@@ -292,17 +374,24 @@ export function GamePage() {
                 onClear={() => {
                   setSelectedFrom(null);
                   setSelectedTo(null);
+                  setActionError(null);
                 }}
                 onRefresh={requestFreshState}
                 onEndTurn={endTurnAction}
                 endTurnLabel={endTurnLabel}
                 endTurnDisabled={!canEndTurn}
                 onSubmit={submitAction}
+                attackDice={attackDice}
+                setAttackDice={setAttackDice}
+                reinforceCount={reinforceCount}
+                setReinforceCount={setReinforceCount}
+                fortifyCount={fortifyCount}
+                setFortifyCount={setFortifyCount}
+                actionContext={view?.action_context ?? null}
               />
             </div>
           </div>
 
-          {/* Right: chat */}
           <div className="lg:col-span-3 h-[600px]">
             <ChatPanel scope="game" gameId={gameId} />
           </div>
