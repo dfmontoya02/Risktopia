@@ -26,6 +26,7 @@ pub fn resolve_attack(
     player: PlayerId,
     from: TerritoryId,
     to: TerritoryId,
+    attacker_dice: u32,
 ) -> Result<AttackResolution, GameError> {
     if from >= core.territories.len() || to >= core.territories.len() {
         return Err(GameError::InvalidTerritory);
@@ -45,16 +46,30 @@ pub fn resolve_attack(
     if core.territories[from].troops <= 1 {
         return Err(GameError::NotEnoughTroops);
     }
-    let attack_dice = 3_u32.min(core.territories[from].troops - 1);
+
+    if !(1..=3).contains(&attacker_dice) {
+        return Err(GameError::InvalidAction);
+    }
+
+    let max_attack_dice = 3_u32.min(core.territories[from].troops - 1);
+    if attacker_dice > max_attack_dice {
+        return Err(GameError::InvalidAction);
+    }
+
     let defend_dice = core.territories[to].troops.min(2);
+
     let mut rng = rand::rng();
-    let mut attacker_rolls: Vec<u8> = (0..attack_dice).map(|_| rng.random_range(1..=6)).collect();
-    let mut defender_rolls: Vec<u8> = (0..defend_dice).map(|_| rng.random_range(1..=6)).collect();
+    let mut attacker_rolls: Vec<u8> =
+        (0..attacker_dice).map(|_| rng.random_range(1..=6)).collect();
+    let mut defender_rolls: Vec<u8> =
+        (0..defend_dice).map(|_| rng.random_range(1..=6)).collect();
+
     attacker_rolls.sort_unstable_by(|a, b| b.cmp(a));
     defender_rolls.sort_unstable_by(|a, b| b.cmp(a));
 
     let mut attacker_losses = 0u8;
     let mut defender_losses = 0u8;
+
     for (attack_roll, defend_roll) in attacker_rolls.iter().zip(defender_rolls.iter()) {
         if attack_roll > defend_roll {
             defender_losses += 1;
@@ -83,12 +98,11 @@ pub fn resolve_attack(
         let defender_id = core.territories[to].owner;
         core.territories[to].owner = player;
 
-        // On capture, move the attacking armies from the final attack.
-        // TODO: Move at least the number of attackers, but can also choose to move more if the attacking territory has enough.
-        let troops_to_move = attack_dice;
+        let troops_to_move = attacker_dice;
         if core.territories[from].troops <= troops_to_move {
             return Err(GameError::NotEnoughTroops);
         }
+
         core.territories[from].troops -= troops_to_move;
         core.territories[to].troops = troops_to_move;
 
@@ -98,6 +112,7 @@ pub fn resolve_attack(
             territory: to,
             new_owner: player,
         });
+
         if let Some(defender) = core.players.iter().find(|p| p.id == defender_id)
             && defender.territories_owned == 0
         {
@@ -171,7 +186,7 @@ mod tests {
     #[test]
     fn resolve_attack_emits_combat_roll_event() {
         let mut core = test_core();
-        let resolution = resolve_attack(&mut core, PlayerId(0), 0, 1).unwrap();
+        let resolution = resolve_attack(&mut core, PlayerId(0), 0, 1, 3).unwrap();        
         assert!(
             resolution
                 .events
@@ -194,5 +209,24 @@ mod tests {
                 .iter()
                 .all(|roll| (1..=6).contains(roll))
         );
+    }
+
+    #[test]
+    fn resolve_attack_rejects_too_many_dice() {
+        let mut core = test_core();
+
+        let result = resolve_attack(&mut core, PlayerId(0), 0, 1, 4);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn resolve_attack_rejects_more_dice_than_available_troops_allow() {
+        let mut core = test_core();
+        core.territories[0].troops = 2; // can only attack with 1 die
+
+        let result = resolve_attack(&mut core, PlayerId(0), 0, 1, 2);
+
+        assert!(result.is_err());
     }
 }

@@ -2,7 +2,11 @@ use crate::game::model::{
     FortifyPhase, GameCore, GameOverState, GameState, PlayerId, ReinforcementPhase, TurnPhase,
 };
 use crate::game::protocol::{GameError, GameEvent, PlayerAction};
-use crate::game::rules::validation::{remaining_players, validate_owned_territory};
+use crate::game::rules::validation::{
+    remaining_players,
+    validate_owned_path,
+    validate_owned_territory,
+};
 use crate::game::rules::{calculate_reinforcements, end_turn};
 use rand::seq::SliceRandom;
 
@@ -30,9 +34,12 @@ impl FortifyPhase {
                 if from == to {
                     return Err(GameError::InvalidFortify);
                 }
-                if !core.map.adjacency[from].contains(&to) {
-                    return Err(GameError::NotAdjacent);
-                }
+                // if !core.map.adjacency[from].contains(&to) {
+                //     return Err(GameError::NotAdjacent);
+                // }
+
+                validate_owned_path(core, player, from, to)?; //replaced the direct adjacency check
+
                 if core.territories[from].troops <= count {
                     return Err(GameError::NotEnoughTroops);
                 }
@@ -50,18 +57,22 @@ impl FortifyPhase {
                 if self.conquered_this_turn {
                     award_territory_card(core, player);
                 }
-                let next_player = end_turn(core, player);
+                // let next_player = end_turn(core, player);
+                // changed next_player to player
+                // Reasoning: the only way remaining_players(core) == 1 
+                // is if the current player has eliminated everyone else.
                 if remaining_players(core) == 1 {
                     return Ok((
                         GameState::GameOver(GameOverState {
-                            winner: next_player,
+                            winner: player,
                         }),
                         vec![GameEvent::PhaseChanged {
-                            current_player: next_player,
+                            current_player: player,
                             phase: TurnPhase::GameOver,
                         }],
                     ));
                 }
+                let next_player = end_turn(core, player);                           
                 let troops_remaining = calculate_reinforcements(core, next_player);
                 Ok((
                     GameState::Reinforcement(ReinforcementPhase {

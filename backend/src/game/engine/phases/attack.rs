@@ -14,8 +14,8 @@ impl AttackPhase {
         }
 
         match action {
-            PlayerAction::Attack { from, to, dice: _ } => {
-                let resolution = resolve_attack(core, player, from, to)?;
+            PlayerAction::Attack { from, to, dice } => {
+                let resolution = resolve_attack(core, player, from, to, dice.into())?;                                               
                 if resolution.captured {
                     self.captured_this_turn = true;
                 }
